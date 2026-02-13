@@ -100,10 +100,3 @@ Optimistic insert and realtime insert both updated the UI.
 
 ---
 
-## 📦 Local Setup
-
-```bash
-git clone https://github.com/your-username/smart-bookmark.git
-cd smart-bookmark
-npm install
-npm run dev

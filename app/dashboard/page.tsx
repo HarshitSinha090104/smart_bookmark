@@ -35,7 +35,7 @@ export default function Dashboard() {
       const user = session.user
       setUserId(user.id)
 
-      // ✅ Subscribe FIRST
+    
       channel = supabase
         .channel(`bookmarks-${user.id}`)
         .on(

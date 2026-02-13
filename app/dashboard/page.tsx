@@ -10,6 +10,7 @@ type Bookmark = {
   url: string
   user_id: string
   created_at: string
+  client_id?: string
 }
 
 export default function Dashboard() {
@@ -34,7 +35,7 @@ export default function Dashboard() {
       const user = session.user
       setUserId(user.id)
 
-      
+      // ✅ Subscribe FIRST
       channel = supabase
         .channel(`bookmarks-${user.id}`)
         .on(
@@ -47,9 +48,15 @@ export default function Dashboard() {
           },
           (payload) => {
             setBookmarks((prev) => {
-             
+              // if already exists, skip
               if (prev.some((b) => b.id === payload.new.id)) return prev
-              return [payload.new as Bookmark, ...prev]
+
+              // replace optimistic entry if present
+              const withoutOptimistic = prev.filter(
+                (b) => !b.client_id
+              )
+
+              return [payload.new as Bookmark, ...withoutOptimistic]
             })
           }
         )
@@ -69,7 +76,7 @@ export default function Dashboard() {
         )
         .subscribe()
 
-    
+      // Fetch existing bookmarks
       const { data } = await supabase
         .from('bookmarks')
         .select('*')
@@ -86,14 +93,14 @@ export default function Dashboard() {
     }
   }, [router])
 
-
   const addBookmark = async () => {
     if (!title || !url || !userId) return
 
-    const tempId = crypto.randomUUID()
+    const clientId = crypto.randomUUID()
 
     const optimisticBookmark: Bookmark = {
-      id: tempId,
+      id: clientId,
+      client_id: clientId,
       title,
       url,
       user_id: userId,
@@ -101,7 +108,6 @@ export default function Dashboard() {
     }
 
     setBookmarks((prev) => [optimisticBookmark, ...prev])
-
     setTitle('')
     setUrl('')
 
@@ -112,8 +118,9 @@ export default function Dashboard() {
     })
 
     if (error) {
-      
-      setBookmarks((prev) => prev.filter((b) => b.id !== tempId))
+      setBookmarks((prev) =>
+        prev.filter((b) => b.client_id !== clientId)
+      )
     }
   }
 
@@ -129,7 +136,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 px-4 py-10 relative">
-     
       <div className="absolute top-6 right-6">
         <button
           onClick={logout}

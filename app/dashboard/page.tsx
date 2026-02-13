@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 type Bookmark = {
@@ -12,6 +13,7 @@ type Bookmark = {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
@@ -25,7 +27,11 @@ export default function Dashboard() {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!user) return
+      if (!user) {
+        router.replace('/')
+        return
+      }
+
       setUserId(user.id)
 
       const { data } = await supabase
@@ -72,7 +78,7 @@ export default function Dashboard() {
     return () => {
       if (channel) supabase.removeChannel(channel)
     }
-  }, [])
+  }, [router])
 
   const addBookmark = async () => {
     if (!title || !url || !userId) return

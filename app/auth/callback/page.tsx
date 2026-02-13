@@ -16,5 +16,9 @@ export default function AuthCallback() {
     finishLogin()
   }, [router])
 
-  return <p>Signing you in...</p>
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      Signing you in...
+    </div>
+  )
 }

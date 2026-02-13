@@ -8,14 +8,18 @@ export default function AuthCallback() {
   const router = useRouter()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    const finishAuth = async () => {
+      const { data } = await supabase.auth.getSession()
+
       if (data.session) {
         router.replace('/dashboard')
       } else {
         router.replace('/')
       }
-    })
+    }
+
+    finishAuth()
   }, [router])
 
-  return <p>Signing you in…</p>
+  return <p>Signing you in...</p>
 }

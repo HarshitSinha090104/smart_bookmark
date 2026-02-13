@@ -7,6 +7,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true, // 🔥 THIS IS THE FIX
+    detectSessionInUrl: true, // ✅ REQUIRED FOR VERCEL
   },
 })

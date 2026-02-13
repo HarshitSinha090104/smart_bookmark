@@ -14,6 +14,7 @@ type Bookmark = {
 
 export default function Dashboard() {
   const router = useRouter()
+
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([])
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
@@ -23,25 +24,17 @@ export default function Dashboard() {
     let channel: ReturnType<typeof supabase.channel>
 
     const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
 
-      if (!user) {
+      if (!session?.user) {
         router.replace('/')
         return
       }
 
+      const user = session.user
       setUserId(user.id)
 
-      const { data } = await supabase
-        .from('bookmarks')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      setBookmarks(data ?? [])
-
+      
       channel = supabase
         .channel(`bookmarks-${user.id}`)
         .on(
@@ -53,7 +46,11 @@ export default function Dashboard() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
-            setBookmarks((prev) => [payload.new as Bookmark, ...prev])
+            setBookmarks((prev) => {
+             
+              if (prev.some((b) => b.id === payload.new.id)) return prev
+              return [payload.new as Bookmark, ...prev]
+            })
           }
         )
         .on(
@@ -71,6 +68,15 @@ export default function Dashboard() {
           }
         )
         .subscribe()
+
+    
+      const { data } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      setBookmarks(data ?? [])
     }
 
     init()
@@ -80,104 +86,126 @@ export default function Dashboard() {
     }
   }, [router])
 
+
   const addBookmark = async () => {
     if (!title || !url || !userId) return
 
-    await supabase.from('bookmarks').insert({
+    const tempId = crypto.randomUUID()
+
+    const optimisticBookmark: Bookmark = {
+      id: tempId,
+      title,
+      url,
+      user_id: userId,
+      created_at: new Date().toISOString(),
+    }
+
+    setBookmarks((prev) => [optimisticBookmark, ...prev])
+
+    setTitle('')
+    setUrl('')
+
+    const { error } = await supabase.from('bookmarks').insert({
       title,
       url,
       user_id: userId,
     })
 
-    setTitle('')
-    setUrl('')
+    if (error) {
+      
+      setBookmarks((prev) => prev.filter((b) => b.id !== tempId))
+    }
   }
 
   const deleteBookmark = async (id: string) => {
+    setBookmarks((prev) => prev.filter((b) => b.id !== id))
     await supabase.from('bookmarks').delete().eq('id', id)
   }
 
+  const logout = async () => {
+    await supabase.auth.signOut()
+    router.replace('/')
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f7ff', padding: 40 }}>
-      <div style={{ maxWidth: 600, margin: 'auto' }}>
-        <h1 style={{ marginBottom: 20, color: '#111' }}>My Bookmarks</h1>
-
-        <input
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          style={{
-            width: '100%',
-            padding: 12,
-            marginBottom: 10,
-            borderRadius: 10,
-            border: '1px solid #cbd5e1',
-            color: '#111',
-          }}
-        />
-
-        <input
-          placeholder="URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          style={{
-            width: '100%',
-            padding: 12,
-            marginBottom: 12,
-            borderRadius: 10,
-            border: '1px solid #cbd5e1',
-            color: '#111',
-          }}
-        />
-
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 px-4 py-10 relative">
+     
+      <div className="absolute top-6 right-6">
         <button
-          onClick={addBookmark}
-          style={{
-            padding: '10px 18px',
-            borderRadius: 10,
-            background: '#6366f1',
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            marginBottom: 30,
-          }}
+          onClick={logout}
+          className="px-4 py-2 rounded-xl bg-white/90 text-gray-800 font-semibold shadow-md hover:bg-white cursor-pointer"
         >
-          Add Bookmark
+          Logout
         </button>
+      </div>
 
-        {bookmarks.map((b) => (
-          <div
-            key={b.id}
-            style={{
-              background: '#fff',
-              padding: 16,
-              borderRadius: 12,
-              marginBottom: 12,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 600 }}>{b.title}</div>
-              <a href={b.url} target="_blank" style={{ color: '#4f46e5' }}>
-                {b.url}
-              </a>
-            </div>
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl p-8 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">
+            My Bookmarks
+          </h1>
+          <p className="text-gray-500">
+            Save and manage your important links
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <input
+              placeholder="Bookmark title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 placeholder-gray-600 focus:ring-2 focus:ring-indigo-500"
+            />
+
+            <input
+              placeholder="https://example.com"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 placeholder-gray-600 focus:ring-2 focus:ring-indigo-500"
+            />
 
             <button
-              onClick={() => deleteBookmark(b.id)}
-              style={{
-                background: 'transparent',
-                color: '#ef4444',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              onClick={addBookmark}
+              className="w-full py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 cursor-pointer"
             >
-              Delete
+              Add Bookmark
             </button>
           </div>
-        ))}
+        </div>
+
+        <div className="space-y-4">
+          {bookmarks.map((b) => (
+            <div
+              key={b.id}
+              className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-lg p-5 flex justify-between items-center"
+            >
+              <div>
+                <div className="font-semibold text-gray-900 truncate">
+                  {b.title}
+                </div>
+                <a
+                  href={b.url}
+                  target="_blank"
+                  className="text-indigo-600 text-sm hover:underline break-all"
+                >
+                  {b.url}
+                </a>
+              </div>
+
+              <button
+                onClick={() => deleteBookmark(b.id)}
+                className="text-red-500 font-medium hover:underline cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+
+          {bookmarks.length === 0 && (
+            <div className="text-center text-white/80 mt-10">
+              No bookmarks yet 🚀
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
